@@ -1,0 +1,79 @@
+import Foundation
+import CoreBluetooth
+
+class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+    
+    static let shared = BluetoothManager()
+    
+    var centralManager: CBCentralManager?
+    var discoveredPeripherals: [CBPeripheral] = []
+    var connectedPeripheral: CBPeripheral?
+    
+    override init() {
+        super.init()
+        centralManager = CBCentralManager(delegate: self, queue: nil)
+    }
+    
+    // MARK: - Scanning
+    func startScanning() {
+        centralManager?.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+    }
+    
+    func stopScanning() {
+        centralManager?.stopScan()
+    }
+    
+    // MARK: - Connection
+    func connect(to peripheral: CBPeripheral) {
+        centralManager?.connect(peripheral, options: nil)
+    }
+    
+    func disconnect() {
+        guard let peripheral = connectedPeripheral else { return }
+        centralManager?.cancelPeripheralConnection(peripheral)
+    }
+    
+    // MARK: - CBCentralManagerDelegate
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        switch central.state {
+        case .poweredOn:
+            print("Bluetooth is powered on")
+        case .poweredOff:
+            print("Bluetooth is powered off")
+        case .unsupported:
+            print("Bluetooth is unsupported")
+        default:
+            print("Bluetooth state: \(central.state)")
+        }
+    }
+    
+    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
+        if !discoveredPeripherals.contains(peripheral) {
+            discoveredPeripherals.append(peripheral)
+        }
+    }
+    
+    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        connectedPeripheral = peripheral
+        peripheral.delegate = self
+        peripheral.discoverServices(nil)
+        print("Connected to \(peripheral.name ?? "Unknown")")
+    }
+    
+    func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        print("Failed to connect: \(error?.localizedDescription ?? "Unknown error")")
+    }
+    
+    func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        connectedPeripheral = nil
+        print("Disconnected from \(peripheral.name ?? "Unknown")")
+    }
+    
+    // MARK: - CBPeripheralDelegate
+    func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        guard let services = peripheral.services else { return }
+        for service in services {
+            peripheral.discoverCharacteristics(nil, for: service)
+        }
+    }
+}
